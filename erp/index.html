@@ -1853,19 +1853,23 @@ async function loadPlanData() {
         ]);
         appData.plans = (planRes.data || []).map(mapPlanFromAPI);
         
-        // orderMapForPlan 생성: 제품명 → 수량/납기일 (미래 납기만)
+        // orderMapForPlan 생성: 제품명 → 수량/납기일
+        // 납기일 빈 것 포함, 미래 납기만 필터
         orderMapForPlan = {};
         const todayStr = getToday();
         (orderRes.data || []).forEach(row => {
             const pName = (row['제품명'] || '').toString().trim();
             if (!pName) return;
             const dueStr = fmtDate(row['납기일']);
-            if (dueStr < todayStr) return;
-            orderMapForPlan[pName] = { qty: row['수량'] || '', due: dueStr };
+            // 납기일이 비어있으면 일단 포함 (수주는 살아있음)
+            // 납기일이 있고 과거이면 제외
+            if (dueStr && dueStr < todayStr) return;
+            orderMapForPlan[pName] = { qty: row['수량'] || '', due: dueStr || '' };
         });
         
         renderPlanFilters();
         renderPlanTable();
+        setupPlanDatalist();  // ✅ 품명 자동완성 드롭다운 데이터 등록
         setSync('● 연결됨');
     } catch(e) {
         console.error('loadPlanData:', e);
@@ -1971,6 +1975,9 @@ function renderPlanTable() {
             }
         });
     }
+    
+    // 품명 자동완성 데이터 보장 (월 이동/필터 변경 시에도 작동)
+    setupPlanDatalist();
 }
 
 // 생산계획 월 이동
