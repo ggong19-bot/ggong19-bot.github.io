@@ -8,6 +8,13 @@
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
     <!-- 견적서 엑셀 업로드용 SheetJS -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- 작업의뢰서 PDF 업로드용 PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        if (typeof pdfjsLib !== 'undefined') {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+    </script>
     <style>
         :root {
             --color-1공장: #3b82f6; --color-2공장: #10b981; --color-3공장: #a855f7;
@@ -736,9 +743,13 @@
 
                 <!-- 세부자재 -->
                 <div class="mb-3">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
                         <label class="form-label-custom" style="margin:0;">세부자재</label>
-                        <button onclick="addMaterialRow()" style="font-size:0.72rem;background:#eff6ff;color:#1e40af;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;">+ 자재 추가</button>
+                        <div class="d-flex gap-1">
+                            <label for="workOrderPdfInput" style="font-size:0.72rem;background:#fef3c7;color:#92400e;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;display:inline-block;">📎 의뢰서 PDF</label>
+                            <input type="file" id="workOrderPdfInput" accept=".pdf" style="display:none;" onchange="handleWorkOrderPdfUpload(event)">
+                            <button onclick="addMaterialRow()" style="font-size:0.72rem;background:#eff6ff;color:#1e40af;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;">+ 자재 추가</button>
+                        </div>
                     </div>
                     <div id="ofMaterialsContainer"></div>
                 </div>
@@ -2051,6 +2062,180 @@ function applyQuoteToOrderForm(q) {
         `• 공정 수: ${q.processes.length}개\n` +
         `• 단가 합계: ${totalUnit.toLocaleString()}원\n\n` +
         `※ 납기일/공장은 직접 선택해주세요.`;
+    alert(summary);
+}
+
+/* ───────── 작업의뢰서 PDF 업로드 (아라니아 양식) ───────── */
+/* 추출 항목:
+   - 자재 목록: "포장 - 랜덤 포토카드 3장 + 접착OPP + 바코드스티커" 라인 파싱
+   - 납기일: "납 기" 옆 날짜 (YYYY년 MM월 DD일)
+   - 참고: 제품명/수량/자재취합일 등도 파싱하지만 미리보기로만 표시
+*/
+function handleWorkOrderPdfUpload(ev) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    if (typeof pdfjsLib === 'undefined') {
+        alert('PDF 라이브러리(PDF.js)가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.');
+        ev.target.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+        try {
+            const arrayBuffer = e.target.result;
+            const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(arrayBuffer) }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const content = await page.getTextContent();
+                // 위치 정보를 살려서 줄별로 묶기 (Y좌표 기준)
+                const lines = {};
+                content.items.forEach(it => {
+                    const y = Math.round(it.transform[5]);
+                    if (!lines[y]) lines[y] = [];
+                    lines[y].push({ x: it.transform[4], str: it.str });
+                });
+                const sortedY = Object.keys(lines).map(Number).sort((a,b)=>b-a);
+                sortedY.forEach(y => {
+                    const lineStr = lines[y].sort((a,b)=>a.x-b.x).map(it=>it.str).join(' ');
+                    fullText += lineStr + '\n';
+                });
+            }
+            const parsed = parseAraniaWorkOrder(fullText);
+            applyWorkOrderToForm(parsed);
+        } catch (err) {
+            console.error('작업의뢰서 PDF 처리 오류:', err);
+            alert('PDF 처리 중 오류가 발생했습니다.\n\n' + (err.message || err) + '\n\n파일이 올바른 아라니아 작업의뢰서인지 확인해주세요.');
+        } finally {
+            ev.target.value = '';
+        }
+    };
+    reader.onerror = function() { alert('PDF 파일을 읽을 수 없습니다.'); };
+    reader.readAsArrayBuffer(file);
+}
+
+function parseAraniaWorkOrder(text) {
+    const result = {
+        productName: '',
+        client: '',
+        quantity: 0,
+        dueDate: '',
+        orderDate: '',
+        gatherDate: '',
+        materials: [],
+        notes: ''
+    };
+
+    // 납기일: "납 기 ... 2026년 04월 30일"
+    const dueMatch = text.match(/납\s*기[\s\S]{0,80}?(\d{4})\s*[년\.\-\/\s]\s*(\d{1,2})\s*[월\.\-\/\s]\s*(\d{1,2})\s*[일\s]?/);
+    if (dueMatch) {
+        result.dueDate = `${dueMatch[1]}-${String(dueMatch[2]).padStart(2,'0')}-${String(dueMatch[3]).padStart(2,'0')}`;
+    }
+
+    // 작업의뢰일자
+    const orderDateMatch = text.match(/작업의뢰일자[\s\S]{0,80}?(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (orderDateMatch) {
+        result.orderDate = `${orderDateMatch[1]}-${String(orderDateMatch[2]).padStart(2,'0')}-${String(orderDateMatch[3]).padStart(2,'0')}`;
+    }
+
+    // 자재취합일
+    const gatherMatch = text.match(/자재취합[\s\S]{0,80}?(\d{4})\s*년\s*(\d{1,2})\s*월\s*(\d{1,2})\s*일/);
+    if (gatherMatch) {
+        result.gatherDate = `${gatherMatch[1]}-${String(gatherMatch[2]).padStart(2,'0')}-${String(gatherMatch[3]).padStart(2,'0')}`;
+    }
+
+    // 제품명: "제 품 명" 다음 줄 또는 같은 줄
+    const productMatch = text.match(/제\s*품\s*명\s*([^\n]+)/);
+    if (productMatch) {
+        let p = productMatch[1].trim();
+        // 다음 키워드가 같은 줄에 붙어있으면 제거
+        p = p.replace(/\s*(납품처|자재취합|수\s*량|구\s*분|발\s*주\s*처|특이사항|앞작업).*$/, '').trim();
+        if (p) result.productName = p;
+    }
+
+    // 거래처: "발 신" 옆 - "(주)아라니아", "㈜아라니아"
+    const clientMatch = text.match(/발\s*신\s*[\(㈜]*([가-힣A-Za-z0-9\s]{2,30}?)(?:\s*Tel|\s*담당|\s*H\.P|\s*\)|\n)/);
+    if (clientMatch) {
+        result.client = clientMatch[1].replace(/\(주\)|㈜/g, '').trim();
+    }
+
+    // 수량: "수 량" 옆 숫자
+    const qtyMatch = text.match(/수\s*량[\s\S]{0,40}?([\d,]+)\s*EA/i);
+    if (qtyMatch) {
+        result.quantity = Number(qtyMatch[1].replace(/,/g, '')) || 0;
+    }
+
+    // 자재: "포장 - X + Y + Z" 라인
+    const packMatch = text.match(/포장\s*[-–:]\s*([^\n]+)/);
+    if (packMatch) {
+        const raw = packMatch[1];
+        // "+" 로 분할
+        const parts = raw.split(/\s*\+\s*/);
+        parts.forEach(p => {
+            let cleaned = p.trim();
+            // 너무 길면 자르기 (다음 섹션이 같은 줄에 붙은 경우 대비)
+            cleaned = cleaned.replace(/\s*(앞작업|특이사항|발주처|납품처|구분).*$/, '').trim();
+            if (cleaned && cleaned.length < 60) result.materials.push(cleaned);
+        });
+    }
+
+    // 자재 추가 추출: 본문에서 "포토카드", "케이스" 등 키워드 자체가 큰 텍스트로 나오는 경우
+    // 예: "포토카드 5종(54*86)"
+    const photoCardSpec = text.match(/포토카드\s*\d*종?\s*\(?\d+\s*[\*x×]\s*\d+\)?/);
+    if (photoCardSpec && !result.materials.some(m => m.includes(photoCardSpec[0].trim()))) {
+        // 이미 있는 "포토카드" 항목을 더 자세한 스펙으로 교체
+        const idx = result.materials.findIndex(m => /포토카드/.test(m));
+        if (idx >= 0) result.materials[idx] = photoCardSpec[0].trim();
+    }
+
+    // 특이사항
+    const noteMatch = text.match(/특이사항\s*([^\n]+)/);
+    if (noteMatch) result.notes = noteMatch[1].trim();
+
+    return result;
+}
+
+function applyWorkOrderToForm(p) {
+    if (!p.materials.length && !p.dueDate) {
+        alert('PDF에서 자재/납기일을 찾지 못했습니다.\n\n표준 아라니아 작업의뢰서 양식인지 확인해주세요.\n(스캔/이미지 PDF는 텍스트 추출이 안 됩니다)');
+        return;
+    }
+
+    // 1) 납기일
+    if (p.dueDate) {
+        const el = document.getElementById('ofDueDate');
+        if (el) el.value = p.dueDate;
+    }
+
+    // 2) 자재: 기존 비어있는 행 제거 후, 기존 비어있지 않은 + PDF 자재 합쳐서 채움
+    const container = document.getElementById('ofMaterialsContainer');
+    const existingNonEmpty = Array.from(container.querySelectorAll('input[type="text"]'))
+        .map(i => i.value.trim()).filter(v => v);
+    container.innerHTML = '';
+    const merged = [...existingNonEmpty, ...p.materials];
+    // 중복 제거 (대소문자/공백 무시)
+    const seen = new Set();
+    const unique = merged.filter(m => {
+        const key = m.replace(/\s+/g, '').toLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+    if (unique.length === 0) addMaterialRow(); else unique.forEach(m => addMaterialRow(m));
+
+    // 3) 결과 요약
+    const summary = `✅ 작업의뢰서 처리 완료\n\n` +
+        `▶ 자동 입력됨:\n` +
+        `  • 납기일: ${p.dueDate || '(찾지 못함)'}\n` +
+        `  • 자재 ${p.materials.length}개:\n${p.materials.map(m => '    - ' + m).join('\n')}\n\n` +
+        `▶ PDF에서 읽은 정보 (참고):\n` +
+        `  • 제품명: ${p.productName || '-'}\n` +
+        `  • 거래처: ${p.client || '-'}\n` +
+        `  • 수량: ${p.quantity ? p.quantity.toLocaleString() : '-'}\n` +
+        `  • 작업의뢰일: ${p.orderDate || '-'}\n` +
+        `  • 자재취합일: ${p.gatherDate || '-'}\n` +
+        (p.notes ? `  • 특이사항: ${p.notes}\n` : '') +
+        `\n※ 위 참고 정보가 필요하면 직접 입력해주세요.`;
     alert(summary);
 }
 
