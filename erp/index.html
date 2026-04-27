@@ -6,6 +6,8 @@
     <title>KSE ERP 시스템</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap" rel="stylesheet">
+    <!-- 견적서 엑셀 업로드용 SheetJS -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
     <style>
         :root {
             --color-1공장: #3b82f6; --color-2공장: #10b981; --color-3공장: #a855f7;
@@ -709,9 +711,13 @@
 
                 <!-- 공정/견적 -->
                 <div class="mb-2">
-                    <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2 flex-wrap gap-1">
                         <label class="form-label-custom" style="margin:0;">공정 및 단가 (견적)</label>
-                        <button onclick="addProcessRow()" style="font-size:0.72rem;background:#eff6ff;color:#1e40af;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;">+ 공정 추가</button>
+                        <div class="d-flex gap-1">
+                            <label for="quoteXlsxInput" style="font-size:0.72rem;background:#ecfdf5;color:#047857;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;display:inline-block;">📂 견적서 업로드</label>
+                            <input type="file" id="quoteXlsxInput" accept=".xlsx,.xls" style="display:none;" onchange="handleQuoteUpload(event)">
+                            <button onclick="addProcessRow()" style="font-size:0.72rem;background:#eff6ff;color:#1e40af;border:none;border-radius:8px;padding:4px 10px;font-weight:700;cursor:pointer;">+ 공정 추가</button>
+                        </div>
                     </div>
                     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
                         <table class="process-table">
@@ -1774,6 +1780,199 @@ function addProcessRow(p) {
     tbody.appendChild(tr);
 }
 function updateProcessTotal() { /* 수량 없으므로 단가 합만 표시 (필요시 수동 업데이트) */ }
+
+/* ───────── 견적서 엑셀 업로드 ───────── */
+/* KSE 표준 견적서 양식:
+   - 시트명: "견적서" (없으면 첫 시트 사용)
+   - A3:    견적일 (날짜)
+   - C4:    고객사 (거래처)
+   - A15~:  품목/Item (제품명, 병합셀)
+   - 14행:  헤더 행 (적요/단가/수량 등)
+   - 15행~: 데이터. "총계" 또는 "Grand Total" 만나면 정지.
+   - 단가가 있는데 적요가 비어있으면 합계행으로 보고 스킵
+*/
+function handleQuoteUpload(ev) {
+    const file = ev.target.files[0];
+    if (!file) return;
+    if (typeof XLSX === 'undefined') {
+        alert('엑셀 라이브러리(SheetJS)가 로드되지 않았습니다. 인터넷 연결을 확인해주세요.');
+        ev.target.value = '';
+        return;
+    }
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const data = new Uint8Array(e.target.result);
+            const wb = XLSX.read(data, { type: 'array' });
+            const sheetName = wb.SheetNames.includes('견적서') ? '견적서' : wb.SheetNames[0];
+            const sheet = wb.Sheets[sheetName];
+            if (!sheet) throw new Error('시트를 읽을 수 없습니다.');
+            const parsed = parseQuoteSheet(sheet);
+            applyQuoteToOrderForm(parsed);
+        } catch (err) {
+            console.error('견적서 파싱 오류:', err);
+            alert('견적서를 읽는 중 오류가 발생했습니다.\n\n' + (err.message || err) + '\n\n양식이 KSE 표준 견적서와 같은지 확인해주세요.');
+        } finally {
+            ev.target.value = ''; // 같은 파일 재업로드 가능하도록 리셋
+        }
+    };
+    reader.onerror = function() { alert('파일을 읽을 수 없습니다.'); };
+    reader.readAsArrayBuffer(file);
+}
+
+/* 견적서 시트 → { date, client, productName, quantity, processes:[{name,price}, ...] } */
+function parseQuoteSheet(sheet) {
+    const get = (addr) => {
+        const c = sheet[addr];
+        if (!c) return '';
+        return c.v !== undefined ? c.v : (c.w || '');
+    };
+    // 헤더 위치 자동 탐지: 1단계로 "적요" 가 있는 행을 헤더 행으로 결정,
+    // 2단계로 그 행 전체를 다시 스캔해 품목/수량/단가 컬럼을 매핑.
+    const ref = sheet['!ref'] || 'A1:Z200';
+    const range = XLSX.utils.decode_range(ref);
+    const cellAt = (r, c) => sheet[XLSX.utils.encode_cell({ r, c })];
+    const cellText = (r, c) => {
+        const cell = cellAt(r, c);
+        if (!cell) return '';
+        return String(cell.v !== undefined ? cell.v : (cell.w || '')).trim();
+    };
+
+    let headerRow = -1, colItem = -1, colDesc = -1, colQty = -1, colPrice = -1;
+    const scanLimit = Math.min(range.s.r + 30, range.e.r);
+    for (let r = range.s.r; r <= scanLimit; r++) {
+        for (let c = range.s.c; c <= range.e.c; c++) {
+            const v = cellText(r, c);
+            if (!v) continue;
+            if (v.includes('적요') || v.toLowerCase().includes('compendium')) {
+                headerRow = r; colDesc = c; break;
+            }
+        }
+        if (headerRow >= 0) break;
+    }
+    if (headerRow < 0) throw new Error('견적서 헤더(적요/Compendium)를 찾을 수 없습니다.');
+
+    for (let c = range.s.c; c <= range.e.c; c++) {
+        const v = cellText(headerRow, c);
+        if (!v) continue;
+        const lv = v.toLowerCase();
+        if ((v.includes('품목') || lv.includes('item')) && colItem < 0) colItem = c;
+        else if ((v.includes('수량') || lv.includes('quantity')) && colQty < 0) colQty = c;
+        else if ((v.includes('단가') || lv.includes('unit cost') || lv.includes('unit price')) && colPrice < 0) colPrice = c;
+    }
+    if (colPrice < 0) throw new Error('견적서 헤더에서 단가/Unit Cost 컬럼을 찾을 수 없습니다.');
+
+    // 메타 정보 (보통 A3=날짜, C4=고객사) - 실패해도 무시
+    let date = '', client = '';
+    const rawDate = get('A3');
+    if (rawDate) {
+        if (typeof rawDate === 'number') {
+            // 엑셀 시리얼 → JS Date
+            const d = XLSX.SSF.parse_date_code(rawDate);
+            if (d) date = `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+        } else {
+            const s = String(rawDate);
+            // "2026-04-26" 또는 "2026/04/26" 또는 "2026년 4월 26일" 모두 지원
+            const m = s.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
+            if (m) date = `${m[1]}-${String(m[2]).padStart(2,'0')}-${String(m[3]).padStart(2,'0')}`;
+        }
+    }
+    client = String(get('C4') || '').trim();
+
+    // 데이터 행 순회: headerRow+1 부터
+    const processes = [];
+    let productName = '';
+    let quantity = 0;
+    const numOf = (v) => {
+        if (v === '' || v === undefined || v === null) return 0;
+        const n = Number(String(v).replace(/,/g, ''));
+        return isFinite(n) ? n : 0;
+    };
+    for (let r = headerRow + 1; r <= range.e.r; r++) {
+        const desc     = cellText(r, colDesc);
+        const itemVal  = colItem  >= 0 ? cellText(r, colItem)  : '';
+        const priceRaw = cellAt(r, colPrice) ? (cellAt(r, colPrice).v ?? cellAt(r, colPrice).w ?? '') : '';
+        const qtyRaw   = colQty   >= 0 && cellAt(r, colQty) ? (cellAt(r, colQty).v ?? cellAt(r, colQty).w ?? '') : '';
+
+        // 정지 조건: "총계" / "Grand Total"
+        if (/총계|grand\s*total/i.test(desc) || /총계|grand\s*total/i.test(itemVal)) break;
+
+        // 품목명 캡처 (병합 셀이라 첫 번째 비어있지 않은 값만 사용)
+        if (itemVal && !productName) productName = itemVal;
+        // 수량 캡처 (첫 번째 숫자값)
+        const q = numOf(qtyRaw);
+        if (q > 0 && !quantity) quantity = q;
+
+        const price = numOf(priceRaw);
+        // 적요 비어있고 단가만 있으면 합계행 → 스킵
+        if (!desc && price > 0) continue;
+        // 둘 다 없으면 빈 행 → 스킵
+        if (!desc && !price) continue;
+
+        processes.push({ name: desc, price: price });
+    }
+
+    return { date, client, productName, quantity, processes };
+}
+
+/* 파싱 결과를 수주 입력 폼에 반영 */
+function applyQuoteToOrderForm(q) {
+    if (!q.processes.length) {
+        alert('견적서에서 공정 데이터를 찾지 못했습니다.\n양식이 올바른지 확인해주세요.');
+        return;
+    }
+    // 1) 제품명
+    if (q.productName) {
+        const prodEl = document.getElementById('ofProduct');
+        if (prodEl) prodEl.value = q.productName;
+    }
+    // 2) 수량
+    if (q.quantity > 0) {
+        const qtyEl = document.getElementById('ofQty');
+        if (qtyEl) qtyEl.value = q.quantity;
+    }
+    // 3) 견적일 → 수주일에 반영 (납기일은 견적서에 없어 그대로 둠)
+    if (q.date) {
+        const dateEl = document.getElementById('ofDate');
+        if (dateEl) dateEl.value = q.date;
+    }
+    // 4) 거래처 매칭
+    if (q.client) {
+        const clientEl = document.getElementById('ofClient');
+        if (clientEl) {
+            const opts = Array.from(clientEl.options).map(o => o.value);
+            if (opts.includes(q.client)) {
+                clientEl.value = q.client;
+                if (typeof toggleOrderCustomClient === 'function') toggleOrderCustomClient();
+            } else {
+                clientEl.value = '기타';
+                if (typeof toggleOrderCustomClient === 'function') toggleOrderCustomClient();
+                const custom = document.getElementById('ofCustomClient');
+                if (custom) custom.value = q.client;
+            }
+        }
+    }
+    // 5) 기존 공정 행 모두 제거 후 새로 추가
+    document.getElementById('processTbody').innerHTML = '';
+    q.processes.forEach(p => addProcessRow(p));
+
+    // 6) 단가 합계 자동 계산해서 ofUnitPrice에 채움
+    const totalUnit = q.processes.reduce((s, p) => s + (Number(p.price) || 0), 0);
+    const upEl = document.getElementById('ofUnitPrice');
+    if (upEl && totalUnit > 0) upEl.value = totalUnit;
+
+    // 7) 사용자 피드백
+    const summary = `✅ 견적서 불러오기 완료\n\n` +
+        `• 제품명: ${q.productName || '(비어있음)'}\n` +
+        `• 수량: ${q.quantity ? q.quantity.toLocaleString() : '(비어있음)'}\n` +
+        `• 거래처: ${q.client || '(비어있음)'}\n` +
+        `• 견적일: ${q.date || '(비어있음)'}\n` +
+        `• 공정 수: ${q.processes.length}개\n` +
+        `• 단가 합계: ${totalUnit.toLocaleString()}원\n\n` +
+        `※ 납기일/공장은 직접 선택해주세요.`;
+    alert(summary);
+}
+
 function getProcessesFromForm() {
     const rows = [];
     document.querySelectorAll('#processTbody tr').forEach(tr=>{
@@ -1853,23 +2052,19 @@ async function loadPlanData() {
         ]);
         appData.plans = (planRes.data || []).map(mapPlanFromAPI);
         
-        // orderMapForPlan 생성: 제품명 → 수량/납기일
-        // 납기일 빈 것 포함, 미래 납기만 필터
+        // orderMapForPlan 생성: 제품명 → 수량/납기일 (미래 납기만)
         orderMapForPlan = {};
         const todayStr = getToday();
         (orderRes.data || []).forEach(row => {
             const pName = (row['제품명'] || '').toString().trim();
             if (!pName) return;
             const dueStr = fmtDate(row['납기일']);
-            // 납기일이 비어있으면 일단 포함 (수주는 살아있음)
-            // 납기일이 있고 과거이면 제외
-            if (dueStr && dueStr < todayStr) return;
-            orderMapForPlan[pName] = { qty: row['수량'] || '', due: dueStr || '' };
+            if (dueStr < todayStr) return;
+            orderMapForPlan[pName] = { qty: row['수량'] || '', due: dueStr };
         });
         
         renderPlanFilters();
         renderPlanTable();
-        setupPlanDatalist();  // ✅ 품명 자동완성 드롭다운 데이터 등록
         setSync('● 연결됨');
     } catch(e) {
         console.error('loadPlanData:', e);
@@ -1975,9 +2170,6 @@ function renderPlanTable() {
             }
         });
     }
-    
-    // 품명 자동완성 데이터 보장 (월 이동/필터 변경 시에도 작동)
-    setupPlanDatalist();
 }
 
 // 생산계획 월 이동
