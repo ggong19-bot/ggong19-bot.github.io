@@ -1234,7 +1234,7 @@ function mapOrderFromAPI(r) {
         unitPrice: Number(r['단가']) || 0,   // 신규: 단가 (없으면 0)
         factory: r['공장'] || '',
         materials: parseMaterials(r['세부자재']),  // 문자열 → 배열
-        processes: r['공장'] ? [r['공장']] : [],   // B옵션: 공장 1개를 공정으로
+        processes: parseProcesses(r['공정']),       // JSON 문자열 → [{name,price}, ...]
     };
 }
 function mapOrderToAPI(o) {
@@ -1249,7 +1249,40 @@ function mapOrderToAPI(o) {
         '단가': Number(o.unitPrice) || 0,   // 신규
         '공장': o.factory,
         '세부자재': serializeMaterials(o.materials),
+        '공정': serializeProcesses(o.processes),  // JSON 문자열로 직렬화
     };
+}
+
+/* 공정 배열 ↔ 시트 컬럼(JSON 문자열) 변환 */
+function parseProcesses(raw) {
+    if (!raw) return [];
+    if (Array.isArray(raw)) {
+        return raw.filter(p => p && typeof p === 'object' && p.name).map(p => ({
+            name: String(p.name||''),
+            price: Number(p.price)||0
+        }));
+    }
+    const s = String(raw).trim();
+    if (!s) return [];
+    try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+            return parsed.filter(p => p && p.name).map(p => ({
+                name: String(p.name||''),
+                price: Number(p.price)||0
+            }));
+        }
+    } catch (e) { /* JSON 아니면 무시 */ }
+    return [];
+}
+function serializeProcesses(procs) {
+    if (!Array.isArray(procs) || procs.length === 0) return '';
+    const cleaned = procs.filter(p => p && p.name).map(p => ({
+        name: String(p.name||''),
+        price: Number(p.price)||0
+    }));
+    if (cleaned.length === 0) return '';
+    return JSON.stringify(cleaned);
 }
 
 // ─── 생산계획 ───
@@ -2053,7 +2086,8 @@ async function saveOrder() {
         quantity: Number(document.getElementById('ofQty').value)||0,
         unitPrice: Number(document.getElementById('ofUnitPrice').value)||0,
         factory: document.getElementById('ofFactory').value,
-        materials: getMaterialsFromForm()
+        materials: getMaterialsFromForm(),
+        processes: getProcessesFromForm()  // 공정 정보 포함
     };
     
     // 한글 컬럼으로 변환해서 전송
