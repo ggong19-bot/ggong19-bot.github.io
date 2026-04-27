@@ -2032,6 +2032,12 @@ function applyQuoteToOrderForm(q) {
     const upEl = document.getElementById('ofUnitPrice');
     if (upEl && totalUnit > 0) upEl.value = totalUnit;
 
+    // 7) 공정/단가 로컬 캐시 (백엔드 컬럼 미설정 시에도 작업일지 드롭다운 동작하도록)
+    if (q.productName) {
+        setLocalProcesses(q.productName, q.processes);
+        if (totalUnit > 0) setLocalUnitPrice(q.productName, totalUnit);
+    }
+
     // 7) 사용자 피드백
     const summary = `✅ 견적서 불러오기 완료\n\n` +
         `• 제품명: ${q.productName || '(비어있음)'}\n` +
@@ -2099,6 +2105,13 @@ async function saveOrder() {
         } else {
             delete payload.id;  // 신규 작성 시 id 제거 (GAS 자동 부여)
             await apiPost('order', 'create', payload);
+        }
+        // 백엔드에 공정 컬럼이 없을 때를 대비해 로컬 캐시에 저장
+        if (orderObj.productName && orderObj.processes && orderObj.processes.length > 0) {
+            setLocalProcesses(orderObj.productName, orderObj.processes);
+        }
+        if (orderObj.productName && orderObj.unitPrice > 0) {
+            setLocalUnitPrice(orderObj.productName, orderObj.unitPrice);
         }
         alert('저장되었습니다.');
         await loadOrderData();
@@ -2840,7 +2853,11 @@ function addWorkEntry(entry) {
     // 현재 품명의 수주에서 공정 목록 가져오기
     const productName = document.getElementById('wfProduct').value;
     const order = appData.orders.find(o=>o.productName===productName);
-    const orderProcesses = order ? (order.processes||[]) : [];
+    let orderProcesses = order ? (order.processes||[]) : [];
+    // 백엔드에 공정이 없으면 로컬 캐시에서 폴백
+    if ((!orderProcesses || orderProcesses.length === 0) && productName) {
+        orderProcesses = getLocalProcesses(productName);
+    }
 
     let processSelect;
     if (orderProcesses.length > 0) {
@@ -3729,6 +3746,33 @@ function getLocalUnitPrice(productName) {
 function setLocalUnitPrice(productName, price) {
     try {
         localStorage.setItem('kse_unitprice_' + productName, String(price));
+    } catch(e) {}
+}
+
+// 공정 로컬 캐시 (백엔드 컬럼 미설정 시 폴백) - localStorage
+function getLocalProcesses(productName) {
+    try {
+        if (!productName) return [];
+        const raw = localStorage.getItem('kse_processes_' + productName);
+        if (!raw) return [];
+        const arr = JSON.parse(raw);
+        if (!Array.isArray(arr)) return [];
+        return arr.filter(p => p && p.name).map(p => ({
+            name: String(p.name||''),
+            price: Number(p.price)||0
+        }));
+    } catch(e) { return []; }
+}
+function setLocalProcesses(productName, procs) {
+    try {
+        if (!productName) return;
+        if (!Array.isArray(procs) || procs.length === 0) return;
+        const cleaned = procs.filter(p => p && p.name).map(p => ({
+            name: String(p.name||''),
+            price: Number(p.price)||0
+        }));
+        if (cleaned.length === 0) return;
+        localStorage.setItem('kse_processes_' + productName, JSON.stringify(cleaned));
     } catch(e) {}
 }
 
