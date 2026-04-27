@@ -2863,11 +2863,13 @@ function addWorkEntry(entry) {
         orderProcesses = getLocalProcesses(productName);
     }
 
+    // 단가는 관리자(수주 잠금 해제 상태)만 보이도록
+    const isAdmin = (typeof lockState !== 'undefined' && lockState.order && lockState.order.unlocked);
     let processSelect;
     if (orderProcesses.length > 0) {
         const opts = orderProcesses.map(p=>{
             const name = p.name || '';
-            const priceStr = p.price ? ` (${fmt(p.price)}원)` : '';
+            const priceStr = (isAdmin && p.price) ? ` (${fmt(p.price)}원)` : '';
             const selected = e.processName === name ? 'selected' : '';
             return `<option value="${name}" ${selected}>${name}${priceStr}</option>`;
         }).join('');
