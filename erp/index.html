@@ -1634,9 +1634,13 @@ function renderOrderCard(o) {
         ? `<div style="margin-top:6px;font-size:0.7rem;color:#94a3b8;">${processes.map(p=>`<span style="background:#eff6ff;color:#1e40af;border-radius:4px;padding:1px 6px;margin-right:3px;font-size:0.65rem;">${p.name}</span>`).join('')}</div>`
         : '';
     const encoded = encodeURIComponent(JSON.stringify(o));
+    const safeId = String(o.id||'').replace(/'/g,"\\'");
+    const safeName = (o.productName||'').replace(/'/g,"\\'");
     return `
-    <div class="order-card f-${o.factory}" onclick="openOrderFormGuarded('${encoded}')">
-        <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+    <div class="order-card f-${o.factory}" onclick="openOrderFormGuarded('${encoded}')" style="position:relative;">
+        <button onclick="event.stopPropagation();deleteOrderById('${safeId}','${safeName}')" title="수주 삭제"
+            style="position:absolute;top:6px;right:6px;background:#fee2e2;color:#b91c1c;border:none;border-radius:50%;width:24px;height:24px;font-size:0.85rem;font-weight:700;cursor:pointer;line-height:1;display:flex;align-items:center;justify-content:center;">✕</button>
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-right:30px;">
             <span class="factory-badge-pill f-${o.factory}">${o.factory}</span>
             <div style="text-align:right;">
                 <div style="font-size:0.65rem;color:#94a3b8;">납기</div>
@@ -1647,6 +1651,30 @@ function renderOrderCard(o) {
         <div class="order-meta">${client||'-'} · 수량 ${fmt(o.quantity)}</div>
         ${processHtml}
     </div>`;
+}
+
+async function deleteOrderById(id, productName) {
+    if (!id) { alert('삭제할 수주의 ID를 찾을 수 없습니다.'); return; }
+    // 관리자 PIN 잠금이 걸려있다면 차단
+    if (typeof lockState !== 'undefined' && lockState.order && !lockState.order.unlocked) {
+        alert('관리자 모드를 먼저 해제해주세요.');
+        document.querySelectorAll('.lock-overlay').forEach(l => l.classList.add('hidden'));
+        const lockEl = document.getElementById('lockOrder');
+        if (lockEl) lockEl.classList.remove('hidden');
+        return;
+    }
+    if (!confirm(`"${productName||'이 수주'}" 를 삭제하시겠습니까?\n\n삭제 후에는 되돌릴 수 없습니다.`)) return;
+    showLoading(true);
+    try {
+        await apiPost('order', 'delete', { id });
+        await loadOrderData();
+        renderOrderList();
+        alert('삭제되었습니다.');
+    } catch (e) {
+        console.error('deleteOrderById:', e);
+        alert('삭제 실패: ' + (e.message || e));
+    }
+    showLoading(false);
 }
 
 function renderPastOrdersSection(past) {
