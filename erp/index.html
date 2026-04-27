@@ -1803,9 +1803,13 @@ function openOrderForm(o) {
     toggleOrderCustomClient();
     selectOrderFactory(o ? o.factory : '1공장');
 
-    // 공정
+    // 공정 (백엔드에 없으면 localStorage 캐시에서 폴백)
     document.getElementById('processTbody').innerHTML = '';
-    const processes = (o && o.processes) ? o.processes : [];
+    let processes = (o && o.processes) ? o.processes : [];
+    if (processes.length === 0 && o && o.productName) {
+        const cached = getLocalProcesses(o.productName);
+        if (cached.length > 0) processes = cached;
+    }
     if (processes.length === 0) addProcessRow(); else processes.forEach(p=>addProcessRow(p));
 
     // 자재
