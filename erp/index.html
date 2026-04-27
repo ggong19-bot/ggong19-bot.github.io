@@ -2362,7 +2362,8 @@ async function loadPlanData() {
             if (dueStr < todayStr) return;
             orderMapForPlan[pName] = { qty: row['수량'] || '', due: dueStr };
         });
-        
+        setupPlanDatalist();   // 품명 드롭다운(datalist) 채우기
+
         renderPlanFilters();
         renderPlanTable();
         setSync('● 연결됨');
@@ -2389,6 +2390,7 @@ function renderPlanFilters() {
 }
 
 function renderPlanTable() {
+    setupPlanDatalist();   // 안전망: 매 렌더 시 datalist 동기화
     const activeF = FACTORIES.filter(f=>planActiveFactories.includes(f));
     const thead = document.getElementById('planThead');
     const tbody = document.getElementById('planTbody');
