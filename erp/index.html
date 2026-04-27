@@ -2179,8 +2179,10 @@ function parseAraniaWorkOrder(text) {
     }
 
     // 패턴 B: "이름(숫자*숫자[*숫자])" (KATSEYE 양식 - 사진 캡션)
-    // 예: "포토북커버(182*252*21)", "렌티큘러홀더 (95*110)", "포토카드 5종(54*86)"
-    const sizeRe = /([가-힣A-Za-z][가-힣A-Za-z0-9 ]{1,25}?)\s*\(\s*(\d+)\s*[\*xX×]\s*(\d+)(?:\s*[\*xX×]\s*(\d+))?\s*\)/g;
+    // 예: "포토북커버(182*252*21)", "렌티큘러홀더(95*110)", "포토북(175*245*12)"
+    // 이름 부분에는 공백 비허용 (PDF.js가 두 자재를 합쳐도 분리 가능)
+    // "포토카드 5종" 처럼 공백 포함 이름은 공백 부분 잘려 "포토카드"만 잡힘 - 허용
+    const sizeRe = /([가-힣A-Za-z][가-힣A-Za-z0-9]{1,25}?)\s*\(\s*(\d+)\s*[\*xX×]\s*(\d+)(?:\s*[\*xX×]\s*(\d+))?\s*\)/g;
     let m;
     while ((m = sizeRe.exec(text)) !== null) {
         const name = m[1].trim();
@@ -2189,6 +2191,8 @@ function parseAraniaWorkOrder(text) {
         if (name.includes('/')) continue;
         if (name.length < 2) continue;
         if (!/[가-힣]/.test(name)) continue;
+        // 영문 약어 같은 것도 제외 (예: FSC, CRIDIT)
+        if (/^[A-Z]{2,}$/.test(name)) continue;
 
         const sizeStr = m[4] ? `${m[2]}*${m[3]}*${m[4]}` : `${m[2]}*${m[3]}`;
         const full = `${name}(${sizeStr})`;
@@ -2223,15 +2227,13 @@ function applyWorkOrderToForm(p) {
         if (el) el.value = p.dueDate;
     }
 
-    // 2) 자재: 기존 비어있는 행 제거 후, 기존 비어있지 않은 + PDF 자재 합쳐서 채움
+    // 2) 자재: 기존 행 모두 비우고 PDF 자재로 새로 채움 (공정 업로드와 동일 동작)
     const container = document.getElementById('ofMaterialsContainer');
-    const existingNonEmpty = Array.from(container.querySelectorAll('input[type="text"]'))
-        .map(i => i.value.trim()).filter(v => v);
     container.innerHTML = '';
-    const merged = [...existingNonEmpty, ...p.materials];
-    // 중복 제거 (대소문자/공백 무시)
+    // 중복 제거 (공백 무시)
     const seen = new Set();
-    const unique = merged.filter(m => {
+    const unique = (p.materials || []).filter(m => {
+        if (typeof m !== 'string' || !m.trim()) return false;
         const key = m.replace(/\s+/g, '').toLowerCase();
         if (seen.has(key)) return false;
         seen.add(key);
