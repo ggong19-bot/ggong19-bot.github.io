@@ -670,6 +670,15 @@
                 <button class="view-toggle-btn" id="btnOrderCal" onclick="switchOrderView('cal')">달력</button>
                 <button class="view-toggle-btn" id="btnOrderNew" onclick="openOrderFormGuarded(null)" style="color:#1e40af;">+ 신규 입력</button>
             </div>
+            <!-- 수주 검색 -->
+            <div id="orderSearchBox" class="position-relative mt-2 mb-1">
+                <input type="text" id="orderSearchInput" class="form-control"
+                    placeholder="🔍 제품명·거래처·공장으로 검색..."
+                    oninput="filterOrderList(this.value)"
+                    style="padding-right:34px;font-size:0.88rem;">
+                <button id="orderSearchClear" onclick="document.getElementById('orderSearchInput').value='';filterOrderList('');"
+                    style="position:absolute;right:6px;top:50%;transform:translateY(-50%);background:none;border:none;color:#94a3b8;font-size:1rem;cursor:pointer;display:none;">✕</button>
+            </div>
             <div id="orderListContent"></div>
             <div id="orderCalContent" style="display:none;"></div>
         </div>
@@ -1368,30 +1377,57 @@ function mapCargoToAPI(c) {
 // 🕒 시간을 HH:mm 형식으로 정규화
 // 지원: "08:40", "08:40:00", "1899-12-30T08:40:00.000Z", Date 객체 등
 function normalizeTime(t) {
-    if (!t) return '';
+    if (t === null || t === undefined) return '';
+    // Date 객체가 직접 들어온 경우 (드물지만 안전망)
+    if (t instanceof Date) {
+        if (isNaN(t.getTime())) return '';
+        const hh = String(t.getHours()).padStart(2,'0');
+        const mm = String(t.getMinutes()).padStart(2,'0');
+        return `${hh}:${mm}`;
+    }
     let s = String(t).trim();
     if (!s) return '';
-    
-    // Date 형식: "1899-12-30T08:40:00.000Z" 또는 "1899-12-31 01:07:52" 등
-    // T 또는 공백 뒤의 HH:mm 추출
-    let m = s.match(/[T\s](\d{1,2}):(\d{2})/);
-    if (m) return `${m[1].padStart(2,'0')}:${m[2]}`;
-    
-    // 그냥 "HH:mm" 또는 "HH:mm:ss" 형식
-    m = s.match(/^(\d{1,2}):(\d{2})/);
-    if (m) return `${m[1].padStart(2,'0')}:${m[2]}`;
-    
-    // Date 객체에서 Date 파싱이 되는 경우
-    try {
-        const d = new Date(s);
-        if (!isNaN(d.getTime())) {
-            const hh = String(d.getHours()).padStart(2,'0');
-            const mm = String(d.getMinutes()).padStart(2,'0');
-            return `${hh}:${mm}`;
-        }
-    } catch(e) {}
-    
-    return s; // 변환 실패시 원본
+
+    const validHM = (h, m) => Number.isFinite(h) && Number.isFinite(m) && h>=0 && h<=23 && m>=0 && m<=59;
+
+    // 1) 이미 깔끔한 "HH:mm" / "H:mm" 문자열
+    let m = s.match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/);
+    if (m) {
+        const h = Number(m[1]), mn = Number(m[2]);
+        if (validHM(h, mn)) return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+    }
+
+    // 2) ISO Date 문자열 ("YYYY-MM-DDTHH:MM:SS...Z" 등)
+    //    GAS 가 시간셀을 KST→UTC 변환해서 보내므로,
+    //    클라이언트(브라우저=KST)에서 Date 로 다시 파싱하면 원본 시간이 복원됨
+    if (/^\d{4}-\d{2}-\d{2}[T\s]\d{1,2}:\d{2}/.test(s)) {
+        try {
+            const d = new Date(s);
+            if (!isNaN(d.getTime())) {
+                const h = d.getHours(), mn = d.getMinutes();
+                if (validHM(h, mn)) {
+                    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+                }
+            }
+        } catch(e) {}
+    }
+
+    // 3) Date.toString() 형식 ("Sat Dec 30 1899 08:40:00 GMT+0900 ...")
+    //    공백으로 둘러싸인 HH:MM:SS 패턴 추출 (시간 부분만)
+    m = s.match(/\s(\d{2}):(\d{2}):\d{2}(?:\s|$)/);
+    if (m) {
+        const h = Number(m[1]), mn = Number(m[2]);
+        if (validHM(h, mn)) return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+    }
+
+    // 4) 마지막 폴백: 첫 번째 HH:MM 패턴 (T/공백 뒤 우선)
+    m = s.match(/[T\s](\d{1,2}):(\d{2})/) || s.match(/(\d{1,2}):(\d{2})/);
+    if (m) {
+        const h = Number(m[1]), mn = Number(m[2]);
+        if (validHM(h, mn)) return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`;
+    }
+
+    return ''; // 어떤 패턴도 안 맞으면 빈 문자열 (mapWorkToAPI 의 폴백 08:40/17:50 가 적용됨)
 }
 
 function mapWorkFromAPI(r) {
@@ -1659,16 +1695,40 @@ function getFactoryColor(f) {
 
 function renderOrderList() {
     const today = getToday();
-    const upcoming = appData.orders.filter(o=>o.dueDate>=today).sort((a,b)=>a.dueDate>b.dueDate?1:-1);
-    const past = appData.orders.filter(o=>o.dueDate<today).sort((a,b)=>a.dueDate<b.dueDate?1:-1);
+    const kw = (document.getElementById('orderSearchInput')?.value || '').trim().toLowerCase();
+    const matchKw = (o) => {
+        if (!kw) return true;
+        const fields = [
+            o.productName, o.client, o.customClient, o.factory,
+            o.dueDate, o.date
+        ].map(x => String(x||'').toLowerCase());
+        return fields.some(f => f.includes(kw));
+    };
+    let upcoming = appData.orders.filter(o=>o.dueDate>=today).sort((a,b)=>a.dueDate>b.dueDate?1:-1);
+    let past = appData.orders.filter(o=>o.dueDate<today).sort((a,b)=>a.dueDate<b.dueDate?1:-1);
+    upcoming = upcoming.filter(matchKw);
+    past = past.filter(matchKw);
 
     let html = '';
-    if (upcoming.length === 0) {
-        html = '<div class="empty-state">진행 중인 수주가 없습니다.</div>';
+    if (kw) {
+        const totalHit = upcoming.length + past.length;
+        html += `<div style="font-size:0.78rem;color:#64748b;margin:6px 2px 8px;"><b>"${kw}"</b> 검색: 진행 ${upcoming.length} · 지난 ${past.length} (총 ${totalHit}건)</div>`;
+    }
+    if (upcoming.length === 0 && !kw) {
+        html += '<div class="empty-state">진행 중인 수주가 없습니다.</div>';
+    } else if (upcoming.length === 0 && kw) {
+        html += '<div class="empty-state" style="color:#94a3b8;font-size:0.85rem;">진행 중인 수주에 일치하는 항목이 없습니다.</div>';
     }
     upcoming.forEach(o => { html += renderOrderCard(o); });
     html += renderPastOrdersSection(past);
     document.getElementById('orderListContent').innerHTML = html;
+}
+
+function filterOrderList(kw) {
+    // ✕ 버튼 표시/숨김
+    const btn = document.getElementById('orderSearchClear');
+    if (btn) btn.style.display = kw ? 'block' : 'none';
+    renderOrderList();
 }
 
 function renderOrderCard(o) {
@@ -1777,6 +1837,9 @@ function switchOrderView(v) {
     orderCurrentView = v;
     document.getElementById('orderListContent').style.display = v==='list'?'block':'none';
     document.getElementById('orderCalContent').style.display = v==='cal'?'block':'none';
+    // 검색창은 목록 뷰에서만 표시
+    const sb = document.getElementById('orderSearchBox');
+    if (sb) sb.style.display = v==='list' ? 'block' : 'none';
     document.getElementById('btnOrderList').classList.toggle('active', v==='list');
     document.getElementById('btnOrderCal').classList.toggle('active', v==='cal');
     if (v==='cal') renderOrderCalendar();
@@ -3222,7 +3285,16 @@ function handleWorkProductInput(v) {
     if(!v){box.style.display='none';return;}
     const matches = appData.orders.filter(o=>o.productName.toLowerCase().includes(v.toLowerCase()));
     if(matches.length>0){
-        box.innerHTML=matches.map(o=>`<div class="autocomplete-item" onclick="selectWorkProduct('${o.productName.replace(/'/g,"\\'")}','${(o.client==='기타'?o.customClient:o.client).replace(/'/g,"\\'")}',${o.quantity||0},'${o.id}')" onmousedown="event.preventDefault();"><b>${o.productName}</b><br><small style="color:#94a3b8;">${o.client==='기타'?o.customClient:o.client}</small></div>`).join('');
+        // onmousedown 에서 즉시 선택+닫기 (preventDefault 로 input blur 방지)
+        // onclick 에 의존하지 않아 모바일/PC 어디서나 즉시 동작
+        box.innerHTML=matches.map(o=>{
+            const pname = o.productName.replace(/'/g,"\\'");
+            const cname = (o.client==='기타'?o.customClient:o.client).replace(/'/g,"\\'");
+            return `<div class="autocomplete-item"
+                onmousedown="event.preventDefault();selectWorkProduct('${pname}','${cname}',${o.quantity||0},'${o.id}');"
+                ontouchend="event.preventDefault();selectWorkProduct('${pname}','${cname}',${o.quantity||0},'${o.id}');"
+                ><b>${o.productName}</b><br><small style="color:#94a3b8;">${cname}</small></div>`;
+        }).join('');
         box.style.display='block';
     } else box.style.display='none';
 }
@@ -3235,12 +3307,16 @@ function closeWfProductSugg() {
     }, 250);
 }
 function selectWorkProduct(p,c,q,orderId) {
-    document.getElementById('wfProduct').value=p;
-    document.getElementById('wfClient').value=c;
-    document.getElementById('wfOrder').value=q;
-    document.getElementById('wfProductSugg').style.display='none';
+    // 가장 먼저 박스를 닫음 (다른 코드에서 에러나도 닫히도록)
+    const box = document.getElementById('wfProductSugg');
+    if (box) box.style.display='none';
+    const prod = document.getElementById('wfProduct'); if (prod) prod.value=p;
+    const cli  = document.getElementById('wfClient');  if (cli)  cli.value=c;
+    const ord  = document.getElementById('wfOrder');   if (ord)  ord.value=q;
+    // 입력 칸에서 포커스 빼기 (모바일 키보드도 내려감)
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
     // 해당 수주의 공정 불러오기 → 기존 엔트리 초기화 후 재생성
-    renderWorkEntries([]);
+    if (typeof renderWorkEntries === 'function') renderWorkEntries([]);
 }
 function handleWorkClientSelect(v) {
     if(v&&v!=='기타') document.getElementById('wfClient').value=v;
