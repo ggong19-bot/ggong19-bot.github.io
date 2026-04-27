@@ -2165,27 +2165,43 @@ function parseAraniaWorkOrder(text) {
         result.quantity = Number(qtyMatch[1].replace(/,/g, '')) || 0;
     }
 
-    // 자재: "포장 - X + Y + Z" 라인
+    // 자재 추출 - 두 가지 패턴 모두 시도
+    // 패턴 A: "포장 - X + Y + Z" (코르티스 양식)
     const packMatch = text.match(/포장\s*[-–:]\s*([^\n]+)/);
     if (packMatch) {
         const raw = packMatch[1];
-        // "+" 로 분할
         const parts = raw.split(/\s*\+\s*/);
-        parts.forEach(p => {
-            let cleaned = p.trim();
-            // 너무 길면 자르기 (다음 섹션이 같은 줄에 붙은 경우 대비)
+        parts.forEach(part => {
+            let cleaned = part.trim();
             cleaned = cleaned.replace(/\s*(앞작업|특이사항|발주처|납품처|구분).*$/, '').trim();
             if (cleaned && cleaned.length < 60) result.materials.push(cleaned);
         });
     }
 
-    // 자재 추가 추출: 본문에서 "포토카드", "케이스" 등 키워드 자체가 큰 텍스트로 나오는 경우
-    // 예: "포토카드 5종(54*86)"
-    const photoCardSpec = text.match(/포토카드\s*\d*종?\s*\(?\d+\s*[\*x×]\s*\d+\)?/);
-    if (photoCardSpec && !result.materials.some(m => m.includes(photoCardSpec[0].trim()))) {
-        // 이미 있는 "포토카드" 항목을 더 자세한 스펙으로 교체
-        const idx = result.materials.findIndex(m => /포토카드/.test(m));
-        if (idx >= 0) result.materials[idx] = photoCardSpec[0].trim();
+    // 패턴 B: "이름(숫자*숫자[*숫자])" (KATSEYE 양식 - 사진 캡션)
+    // 예: "포토북커버(182*252*21)", "렌티큘러홀더 (95*110)", "포토카드 5종(54*86)"
+    const sizeRe = /([가-힣A-Za-z][가-힣A-Za-z0-9 ]{1,25}?)\s*\(\s*(\d+)\s*[\*xX×]\s*(\d+)(?:\s*[\*xX×]\s*(\d+))?\s*\)/g;
+    let m;
+    while ((m = sizeRe.exec(text)) !== null) {
+        const name = m[1].trim();
+        // 제외: 표4/표1 같은 사양, 슬래시 포함, 한글 없음
+        if (/^표\s*\d/.test(name)) continue;
+        if (name.includes('/')) continue;
+        if (name.length < 2) continue;
+        if (!/[가-힣]/.test(name)) continue;
+
+        const sizeStr = m[4] ? `${m[2]}*${m[3]}*${m[4]}` : `${m[2]}*${m[3]}`;
+        const full = `${name}(${sizeStr})`;
+
+        const norm = s => s.replace(/\s+/g, '');
+        const existsExact = result.materials.some(x => norm(x) === norm(full));
+        const existsLoose = result.materials.some(x => norm(x).includes(norm(name)));
+        if (!existsExact && !existsLoose) {
+            result.materials.push(full);
+        } else if (existsLoose && !existsExact) {
+            const idx = result.materials.findIndex(x => norm(x).includes(norm(name)));
+            if (idx >= 0 && full.length > result.materials[idx].length) result.materials[idx] = full;
+        }
     }
 
     // 특이사항
@@ -2253,11 +2269,19 @@ function getProcessesFromForm() {
 
 /* 자재 행 */
 function addMaterialRow(val='') {
+    // val 이 객체로 들어오는 케이스 안전 처리 (parseMaterials 가 {name:...} 반환)
+    let v = '';
+    if (val == null) v = '';
+    else if (typeof val === 'string') v = val;
+    else if (typeof val === 'object') v = String(val.name || val.value || '');
+    else v = String(val);
+    // HTML attribute 인젝션 방지
+    v = v.replace(/"/g, '&quot;');
     const container = document.getElementById('ofMaterialsContainer');
     const div = document.createElement('div');
     div.style.cssText = 'display:flex;gap:6px;margin-bottom:6px;';
     div.innerHTML = `
-        <input type="text" class="form-control" placeholder="자재명" value="${val}" style="flex:1;">
+        <input type="text" class="form-control" placeholder="자재명" value="${v}" style="flex:1;">
         <button onclick="this.parentElement.remove();" style="background:none;border:none;color:#ef4444;font-size:1.1rem;cursor:pointer;padding:4px;">✕</button>`;
     container.appendChild(div);
 }
