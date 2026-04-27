@@ -1775,11 +1775,20 @@ function addProcessRow(p) {
     const tr = document.createElement('tr');
     tr.innerHTML = `
         <td><input type="text" placeholder="공정명" value="${p?p.name||'':''}" class="proc-name"></td>
-        <td><input type="number" placeholder="0" value="${p?p.price||'':''}" class="proc-price"></td>
-        <td><button onclick="this.closest('tr').remove();" style="background:none;border:none;color:#ef4444;font-size:1rem;cursor:pointer;padding:2px;">✕</button></td>`;
+        <td><input type="number" placeholder="0" value="${p?p.price||'':''}" class="proc-price" oninput="updateProcessTotal()"></td>
+        <td><button onclick="this.closest('tr').remove();updateProcessTotal();" style="background:none;border:none;color:#ef4444;font-size:1rem;cursor:pointer;padding:2px;">✕</button></td>`;
     tbody.appendChild(tr);
+    updateProcessTotal();
 }
-function updateProcessTotal() { /* 수량 없으므로 단가 합만 표시 (필요시 수동 업데이트) */ }
+function updateProcessTotal() {
+    let total = 0;
+    document.querySelectorAll('#processTbody .proc-price').forEach(inp => {
+        const v = Number(inp.value);
+        if (isFinite(v)) total += v;
+    });
+    const el = document.getElementById('processTotalDisplay');
+    if (el) el.textContent = `단가 합계: ${total.toLocaleString()}원`;
+}
 
 /* ───────── 견적서 엑셀 업로드 ───────── */
 /* KSE 표준 견적서 양식:
@@ -1955,6 +1964,7 @@ function applyQuoteToOrderForm(q) {
     // 5) 기존 공정 행 모두 제거 후 새로 추가
     document.getElementById('processTbody').innerHTML = '';
     q.processes.forEach(p => addProcessRow(p));
+    updateProcessTotal();
 
     // 6) 단가 합계 자동 계산해서 ofUnitPrice에 채움
     const totalUnit = q.processes.reduce((s, p) => s + (Number(p.price) || 0), 0);
