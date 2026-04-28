@@ -1387,6 +1387,8 @@ function normalizeTime(t) {
     }
     let s = String(t).trim();
     if (!s) return '';
+    // 시트 텍스트 강제 마커 (')가 남아있으면 제거
+    if (s.startsWith("'")) s = s.substring(1);
 
     const validHM = (h, m) => Number.isFinite(h) && Number.isFinite(m) && h>=0 && h<=23 && m>=0 && m<=59;
 
@@ -1471,6 +1473,7 @@ function mapWorkToAPI(w) {
     if (!st) st = '08:40';
     if (!et) et = '17:50';
     
+    // 시트가 시간(TIME) 형식으로 자동 변환하지 못하도록 ' 접두사 (텍스트 강제)
     return {
         id: w.rowId || w.id,
         '날짜': w.date,
@@ -1481,8 +1484,8 @@ function mapWorkToAPI(w) {
         '수주량': Number(w.totalOrder) || 0,
         '작업량': Number(w.workQty) || 0,
         '상세내역': w.remark || '',
-        '시작시간': st,
-        '종료시간': et,
+        '시작시간': "'" + st,   // 텍스트 강제
+        '종료시간': "'" + et,   // 텍스트 강제
         '여성_전체': Number(w.womanAll) || 0,
         '남성_전체': Number(w.manAll) || 0,
         '고정_여성': Number(w.womanFixed) || 0,
