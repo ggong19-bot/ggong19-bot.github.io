@@ -2689,21 +2689,29 @@ async function savePlanData() {
     });
     
     try {
-        // 2. 기존 plan 전체 삭제
-        document.getElementById('planStatus').textContent = '기존 삭제 중...';
+        // 2. 기존 plan 중 "현재 보고있는 월"에 해당하는 것만 삭제
+        //    (이전 코드는 모든 월의 데이터를 삭제해서 지난달 일정이 사라지는 버그)
+        const y = planCurrentMonth?.year;
+        const mo = planCurrentMonth?.month;
+        const monthPrefix = `${y}-${String(mo).padStart(2,'0')}`;  // "2026-04"
+        document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 삭제 중...`;
         const existing = await apiGet('plan');
         const existingRows = existing.data || [];
-        for (const row of existingRows) {
+        const targetRows = existingRows.filter(row => {
+            const d = fmtDate(row['날짜']);
+            return d && d.startsWith(monthPrefix);
+        });
+        for (const row of targetRows) {
             await apiPost('plan', 'delete', { id: row.id });
         }
-        
-        // 3. 새 데이터 insert
+
+        // 3. 새 데이터 insert (현재 월 분만)
         document.getElementById('planStatus').textContent = `저장 중 (${exportData.length}건)...`;
         for (const p of exportData) {
             await apiPost('plan', 'create', mapPlanToAPI(p));
         }
-        
-        alert('✅ 저장 완료! (' + exportData.length + '건)');
+
+        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월의 데이터는 보존됩니다.`);
         document.getElementById('planStatus').textContent='● 저장됨';
         await loadPlanData();  // 새로고침
     } catch(e) {
