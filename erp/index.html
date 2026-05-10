@@ -2656,10 +2656,8 @@ function setupPlanDatalist() {
 }
 
 async function savePlanData() {
-    if(!confirm('저장하시겠습니까?')) return;
-    document.getElementById('planStatus').textContent='저장 중...';
-    showLoading(true);
-    
+    document.getElementById('planStatus').textContent='저장 검증 중...';
+
     // 1. 현재 테이블에서 새 계획 데이터 추출 (공정+수량이 한 td 안)
     const exportData = [];
     document.querySelectorAll('#planTbody tr').forEach(tr => {
@@ -2687,31 +2685,80 @@ async function savePlanData() {
             factoryColIdx += 1;  // 통합 구조: 공장당 1칸
         });
     });
-    
+
+    const y = planCurrentMonth?.year;
+    const mo = planCurrentMonth?.month;
+    if (!y || !mo) {
+        alert('현재 월 정보를 찾을 수 없습니다. 페이지를 새로고침 한 후 다시 시도해주세요.');
+        document.getElementById('planStatus').textContent = '⚠ 월 정보 없음';
+        return;
+    }
+    const monthPrefix = `${y}-${String(mo).padStart(2,'0')}`;  // "2026-04"
+
+    // ── 안전장치 ── 백엔드의 현재 월 행수와 비교해 데이터 손실 가능성 점검
+    let existingRows = [];
     try {
-        // 2. 기존 plan 중 "현재 보고있는 월"에 해당하는 것만 삭제
-        //    (이전 코드는 모든 월의 데이터를 삭제해서 지난달 일정이 사라지는 버그)
-        const y = planCurrentMonth?.year;
-        const mo = planCurrentMonth?.month;
-        const monthPrefix = `${y}-${String(mo).padStart(2,'0')}`;  // "2026-04"
-        document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 삭제 중...`;
         const existing = await apiGet('plan');
-        const existingRows = existing.data || [];
-        const targetRows = existingRows.filter(row => {
-            const d = fmtDate(row['날짜']);
-            return d && d.startsWith(monthPrefix);
-        });
+        existingRows = existing.data || [];
+    } catch(e) {
+        alert('서버에서 기존 데이터를 가져오지 못했습니다. 네트워크 확인 후 다시 시도해주세요.\n\n' + (e.message||e));
+        document.getElementById('planStatus').textContent = '⚠ 로드 실패';
+        return;
+    }
+    const targetRows = existingRows.filter(row => {
+        const d = fmtDate(row['날짜']);
+        return d && d.startsWith(monthPrefix);
+    });
+
+    // 안전장치 1: 화면이 완전히 비어있으면 절대 저장 X (실수 방지)
+    if (exportData.length === 0 && targetRows.length > 0) {
+        alert(
+            `⛔ 저장 차단\n\n` +
+            `${y}년 ${mo}월 화면에 입력된 데이터가 0건인데\n` +
+            `시트에는 ${targetRows.length}건이 저장돼 있습니다.\n\n` +
+            `이 상태로 저장하면 시트의 ${targetRows.length}건이 모두 삭제됩니다.\n\n` +
+            `※ 페이지를 새로고침(Ctrl+F5) 후 다시 시도해주세요.\n` +
+            `※ 정말 비우려면 각 항목을 직접 ✕로 지우세요.`
+        );
+        document.getElementById('planStatus').textContent = '⚠ 안전 차단됨';
+        return;
+    }
+
+    // 안전장치 2: 데이터가 절반 이상 줄어들 때 추가 확인
+    if (targetRows.length > 0 && exportData.length < targetRows.length / 2) {
+        const ok = confirm(
+            `⚠️ 주의\n\n` +
+            `${y}년 ${mo}월 화면에 ${exportData.length}건 입력 중\n` +
+            `시트에 저장된 건 ${targetRows.length}건입니다.\n\n` +
+            `${targetRows.length - exportData.length}건이 사라집니다.\n\n` +
+            `정말 진행하시겠습니까?`
+        );
+        if (!ok) {
+            document.getElementById('planStatus').textContent = '저장 취소됨';
+            return;
+        }
+    } else {
+        // 일반 확인
+        if (!confirm(`${y}년 ${mo}월 일정을 저장합니다 (${exportData.length}건). 진행하시겠습니까?\n\n※ 다른 월의 데이터는 그대로 유지됩니다.`)) return;
+    }
+
+    document.getElementById('planStatus').textContent='저장 중...';
+    showLoading(true);
+
+    try {
+        // 2. 현재 월 기존 데이터 삭제
+        document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 정리 중... (${targetRows.length}건)`;
         for (const row of targetRows) {
             await apiPost('plan', 'delete', { id: row.id });
         }
 
-        // 3. 새 데이터 insert (현재 월 분만)
+        // 3. 새 데이터 insert
         document.getElementById('planStatus').textContent = `저장 중 (${exportData.length}건)...`;
         for (const p of exportData) {
             await apiPost('plan', 'create', mapPlanToAPI(p));
         }
 
-        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월의 데이터는 보존됩니다.`);
+        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월의 데이터는 그대로 유지됩니다.`);
         document.getElementById('planStatus').textContent='● 저장됨';
         await loadPlanData();  // 새로고침
     } catch(e) {
