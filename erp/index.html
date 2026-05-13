@@ -2655,7 +2655,15 @@ function setupPlanDatalist() {
     dl.innerHTML = Object.keys(orderMapForPlan).map(k=>`<option value="${k}">`).join('');
 }
 
+let _savePlanInFlight = false;
 async function savePlanData() {
+    // ── 더블클릭 방지 ── 진행 중이면 무시
+    if (_savePlanInFlight) {
+        alert('이미 저장이 진행 중입니다. 잠시만 기다려주세요.');
+        return;
+    }
+    _savePlanInFlight = true;
+    try {
     document.getElementById('planStatus').textContent='저장 검증 중...';
 
     // 1. 현재 테이블에서 새 계획 데이터 추출 (공정+수량이 한 td 안)
@@ -2705,16 +2713,21 @@ async function savePlanData() {
         document.getElementById('planStatus').textContent = '⚠ 로드 실패';
         return;
     }
+
+    // ── 핵심 수정 ── 현재 월 + "현재 활성화된 공장"에 해당하는 행만 삭제 대상으로 잡음
+    //                필터로 가려진 공장 데이터는 보존 (포장팀장이 OPP실만 켜고 저장해도 1공장 안 사라짐)
     const targetRows = existingRows.filter(row => {
         const d = fmtDate(row['날짜']);
-        return d && d.startsWith(monthPrefix);
+        if (!d || !d.startsWith(monthPrefix)) return false;
+        const f = row['공장'] || '';
+        return planActiveFactories.includes(f);
     });
 
     // 안전장치 1: 화면이 완전히 비어있으면 절대 저장 X (실수 방지)
     if (exportData.length === 0 && targetRows.length > 0) {
         alert(
             `⛔ 저장 차단\n\n` +
-            `${y}년 ${mo}월 화면에 입력된 데이터가 0건인데\n` +
+            `${y}년 ${mo}월 (활성 공장: ${planActiveFactories.join(', ')}) 화면에 입력된 데이터가 0건인데\n` +
             `시트에는 ${targetRows.length}건이 저장돼 있습니다.\n\n` +
             `이 상태로 저장하면 시트의 ${targetRows.length}건이 모두 삭제됩니다.\n\n` +
             `※ 페이지를 새로고침(Ctrl+F5) 후 다시 시도해주세요.\n` +
@@ -2728,7 +2741,7 @@ async function savePlanData() {
     if (targetRows.length > 0 && exportData.length < targetRows.length / 2) {
         const ok = confirm(
             `⚠️ 주의\n\n` +
-            `${y}년 ${mo}월 화면에 ${exportData.length}건 입력 중\n` +
+            `${y}년 ${mo}월 (활성 공장: ${planActiveFactories.join(', ')}) 화면에 ${exportData.length}건 입력 중\n` +
             `시트에 저장된 건 ${targetRows.length}건입니다.\n\n` +
             `${targetRows.length - exportData.length}건이 사라집니다.\n\n` +
             `정말 진행하시겠습니까?`
@@ -2739,14 +2752,18 @@ async function savePlanData() {
         }
     } else {
         // 일반 확인
-        if (!confirm(`${y}년 ${mo}월 일정을 저장합니다 (${exportData.length}건). 진행하시겠습니까?\n\n※ 다른 월의 데이터는 그대로 유지됩니다.`)) return;
+        const inactiveFactories = FACTORIES.filter(f => !planActiveFactories.includes(f));
+        const inactiveNote = inactiveFactories.length > 0
+            ? `\n\n※ 비활성 공장(${inactiveFactories.join(', ')})의 데이터는 그대로 유지됩니다.`
+            : '';
+        if (!confirm(`${y}년 ${mo}월 일정을 저장합니다 (${exportData.length}건, 활성 공장: ${planActiveFactories.join(', ')}).\n진행하시겠습니까?\n\n※ 다른 월의 데이터는 그대로 유지됩니다.${inactiveNote}`)) return;
     }
 
     document.getElementById('planStatus').textContent='저장 중...';
     showLoading(true);
 
     try {
-        // 2. 현재 월 기존 데이터 삭제
+        // 2. 현재 월 + 활성 공장 기존 데이터만 삭제
         document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 정리 중... (${targetRows.length}건)`;
         for (const row of targetRows) {
             await apiPost('plan', 'delete', { id: row.id });
@@ -2758,7 +2775,7 @@ async function savePlanData() {
             await apiPost('plan', 'create', mapPlanToAPI(p));
         }
 
-        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월의 데이터는 그대로 유지됩니다.`);
+        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월·다른 공장 데이터는 그대로 유지됩니다.`);
         document.getElementById('planStatus').textContent='● 저장됨';
         await loadPlanData();  // 새로고침
     } catch(e) {
@@ -2767,6 +2784,9 @@ async function savePlanData() {
         document.getElementById('planStatus').textContent = '⚠ 저장 실패';
     }
     showLoading(false);
+    } finally {
+        _savePlanInFlight = false;
+    }
 }
 
 /* ================================================================
