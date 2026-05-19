@@ -1198,6 +1198,7 @@ let appData = {
 };
 let planActiveFactories = [...FACTORIES];
 let planCurrentMonth = null;  // {year, month} — 처음 렌더 시 오늘 기준으로 세팅
+let planLoadedRaw = null;     // SAFE-MERGE 스냅샷: 페이지 띄울 때 받은 raw 행. 저장 직전 다른 사용자 추가분 식별용. null = 아직 로드 전.
 
 /* ================================================================
    🔄 통합 API 레이어
@@ -2416,8 +2417,10 @@ async function loadPlanData() {
             apiGet('plan'),
             apiGet('order'),
         ]);
-        appData.plans = (planRes.data || []).map(mapPlanFromAPI);
-        
+        const rawPlans = planRes.data || [];
+        planLoadedRaw = rawPlans.slice();   // SAFE-MERGE 스냅샷 갱신
+        appData.plans = rawPlans.map(mapPlanFromAPI);
+
         // orderMapForPlan 생성: 제품명 → 수량/납기일 (미래 납기만)
         orderMapForPlan = {};
         const todayStr = getToday();
@@ -2723,13 +2726,25 @@ async function savePlanData() {
         return planActiveFactories.includes(f);
     });
 
+    // ── SAFE-MERGE ── 페이지 띄운 후 다른 사용자가 추가한 행 자동 보존
+    //   planLoadedRaw = 내가 페이지 띄울 때 받은 시트 행들의 스냅샷
+    //   addedByOthers = 시트엔 있지만 내 스냅샷엔 없는 행 (= 다른 사람이 그 사이 추가)
+    //   rowsToDelete  = targetRows에서 addedByOthers 제외 (안전하게 삭제할 행)
+    let addedByOthers = [];
+    let rowsToDelete = targetRows;
+    if (planLoadedRaw !== null) {
+        const myLoadedIds = new Set(planLoadedRaw.map(r => r.id));
+        addedByOthers = targetRows.filter(r => !myLoadedIds.has(r.id));
+        rowsToDelete  = targetRows.filter(r =>  myLoadedIds.has(r.id));
+    }
+
     // 안전장치 1: 화면이 완전히 비어있으면 절대 저장 X (실수 방지)
-    if (exportData.length === 0 && targetRows.length > 0) {
+    if (exportData.length === 0 && rowsToDelete.length > 0) {
         alert(
             `⛔ 저장 차단\n\n` +
             `${y}년 ${mo}월 (활성 공장: ${planActiveFactories.join(', ')}) 화면에 입력된 데이터가 0건인데\n` +
-            `시트에는 ${targetRows.length}건이 저장돼 있습니다.\n\n` +
-            `이 상태로 저장하면 시트의 ${targetRows.length}건이 모두 삭제됩니다.\n\n` +
+            `시트에는 ${rowsToDelete.length}건이 저장돼 있습니다.\n\n` +
+            `이 상태로 저장하면 시트의 ${rowsToDelete.length}건이 모두 삭제됩니다.\n\n` +
             `※ 페이지를 새로고침(Ctrl+F5) 후 다시 시도해주세요.\n` +
             `※ 정말 비우려면 각 항목을 직접 ✕로 지우세요.`
         );
@@ -2737,13 +2752,13 @@ async function savePlanData() {
         return;
     }
 
-    // 안전장치 2: 데이터가 절반 이상 줄어들 때 추가 확인
-    if (targetRows.length > 0 && exportData.length < targetRows.length / 2) {
+    // 안전장치 2: 데이터가 절반 이상 줄어들 때 추가 확인 (보존분 제외)
+    if (rowsToDelete.length > 0 && exportData.length < rowsToDelete.length / 2) {
         const ok = confirm(
             `⚠️ 주의\n\n` +
             `${y}년 ${mo}월 (활성 공장: ${planActiveFactories.join(', ')}) 화면에 ${exportData.length}건 입력 중\n` +
-            `시트에 저장된 건 ${targetRows.length}건입니다.\n\n` +
-            `${targetRows.length - exportData.length}건이 사라집니다.\n\n` +
+            `시트에 ${rowsToDelete.length}건이 저장돼 있습니다 (다른 사용자 추가분 ${addedByOthers.length}건 별도 보존).\n\n` +
+            `${rowsToDelete.length - exportData.length}건이 사라집니다.\n\n` +
             `정말 진행하시겠습니까?`
         );
         if (!ok) {
@@ -2763,9 +2778,9 @@ async function savePlanData() {
     showLoading(true);
 
     try {
-        // 2. 현재 월 + 활성 공장 기존 데이터만 삭제
-        document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 정리 중... (${targetRows.length}건)`;
-        for (const row of targetRows) {
+        // 2. 현재 월 + 활성 공장 기존 데이터만 삭제 (다른 사용자 추가분은 보존)
+        document.getElementById('planStatus').textContent = `${y}년 ${mo}월 기존 데이터 정리 중... (${rowsToDelete.length}건${addedByOthers.length ? `, 보존 ${addedByOthers.length}건` : ''})`;
+        for (const row of rowsToDelete) {
             await apiPost('plan', 'delete', { id: row.id });
         }
 
@@ -2775,7 +2790,12 @@ async function savePlanData() {
             await apiPost('plan', 'create', mapPlanToAPI(p));
         }
 
-        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건)\n\n※ 다른 월·다른 공장 데이터는 그대로 유지됩니다.`);
+        const preservedNote = addedByOthers.length > 0
+            ? `\n\n🔒 다른 사용자가 추가한 ${addedByOthers.length}건 자동 보존:\n` +
+              addedByOthers.slice(0,8).map(r => `  · ${(fmtDate(r['날짜'])||'').slice(5)} ${r['공장']||''} ${(r['제품명']||'').slice(0,30)} (${r['수량']||0})`).join('\n') +
+              (addedByOthers.length > 8 ? `\n  ... 외 ${addedByOthers.length-8}건` : '')
+            : '';
+        alert(`✅ ${y}년 ${mo}월 저장 완료! (${exportData.length}건${addedByOthers.length ? ` + 보존 ${addedByOthers.length}건` : ''})\n\n※ 다른 월·다른 공장 데이터는 그대로 유지됩니다.${preservedNote}`);
         document.getElementById('planStatus').textContent='● 저장됨';
         await loadPlanData();  // 새로고침
     } catch(e) {
