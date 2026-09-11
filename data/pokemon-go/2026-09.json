@@ -1,0 +1,290 @@
+{
+  "meta": {
+    "title": "포켓몬 GO 최신 정보 스냅샷",
+    "collected_at": "2026-09-11",
+    "scope": "2026년 9월 ~ 10월 초 (황혼의 여정 시즌 1개월차)",
+    "time_note": "별도 표기가 없으면 모두 '현지 시간(local time)' 기준입니다. 한국은 대부분 그대로 KST로 적용됩니다.",
+    "source_note": "이 세션의 네트워크 정책상 pokemongo.com / leekduck.com / poketory.com 등 원문 사이트 직접 접속(WebFetch)이 차단되어, 검색 엔진이 반환한 요약을 교차 대조해 정리했습니다. 날짜/시간은 다수 출처가 일치하는 항목 위주이며, confidence 필드를 참고하세요.",
+    "name_note": "한글 포켓몬 이름은 공식 한국어 페이지가 아닌 일반 표기 기준입니다. 서비스 반영 전 공식 표기 재확인 권장."
+  },
+
+  "season": {
+    "name_ko": "황혼의 여정",
+    "name_en": "Twilight Trails",
+    "number": 24,
+    "start": "2026-09-08T10:00",
+    "end": "2026-12-01T10:00",
+    "confidence": "high",
+    "theme": "야간·신비·그림자 계열 분위기, 팔데아 지방 확장, 메가진화 확대",
+    "debuts": [
+      { "ko": "오라티프", "en": "Maschiff", "note": "팔데아 지방, 포켓몬 GO 첫 등장" },
+      { "ko": "마피티프", "en": "Mabosstiff", "note": "오라티프 캔디 50개로 진화" }
+    ],
+    "new_megas": [
+      { "ko": "메가 찌르호크", "en": "Mega Staraptor", "debut": "2026-09-19 슈퍼 메가 레이드 데이" },
+      { "ko": "메가 샹델라", "en": "Mega Chandelure", "debut": "시즌 중" }
+    ],
+    "new_dynamax": [
+      { "ko": "뿔카노", "en": "Rhyhorn" },
+      { "ko": "포푸니", "en": "Sneasel" },
+      { "ko": "태우지네", "en": "Sizzlipede" },
+      { "ko": "유크시", "en": "Uxie", "note": "시즌 중 맥스 배틀 데이" },
+      { "ko": "엠라이트", "en": "Mesprit", "note": "시즌 중 맥스 배틀 데이" },
+      { "ko": "아그놈", "en": "Azelf", "note": "시즌 중 맥스 배틀 데이" }
+    ],
+    "season_legendaries": [
+      { "ko": "가이오가", "en": "Kyogre" },
+      { "ko": "그란돈", "en": "Groudon" },
+      { "ko": "라티아스", "en": "Latias" }
+    ],
+    "go_pass": {
+      "name": "GO Pass (시즌 진행 트랙)",
+      "milestones": [
+        { "tier": 1, "rank": 1, "bonus": "레벨 31 이상 트레이너, 교환 시 캔디XL 1개 확정 획득" },
+        { "tier": 2, "rank": 25, "bonus": "선물 열기 / 포켓스톱·체육관 선물 획득 / 선물 보관 한도 증가" },
+        { "tier": 3, "rank": 50, "bonus": "데일리 어드벤처 인센스 지속 시간 2배" },
+        { "tier": 4, "rank": 75, "bonus": "알 부화 시 XP·별의모래 증가" }
+      ]
+    },
+    "research_breakthrough": "필드 리서치 달성 보상은 시즌 테마 포켓몬이 로테이션으로 등장"
+  },
+
+  "events": [
+    {
+      "id": "mega-ascension-2026",
+      "name_ko": "메가 어센션",
+      "name_en": "Mega Ascension",
+      "start": "2026-08-31T10:00",
+      "end": "2026-09-04T23:59",
+      "status": "종료",
+      "summary": "메가 레이드 로테이션 + 야생 출현 강화",
+      "confidence": "medium"
+    },
+    {
+      "id": "gofest-2026-mega-finale",
+      "name_ko": "Pokémon GO Fest 2026: 메가 피날레",
+      "name_en": "Pokémon GO Fest 2026: Mega Finale",
+      "start": "2026-09-05T10:00",
+      "end": "2026-09-06T18:00",
+      "status": "종료",
+      "summary": "여름 시즌 마무리 2일간 글로벌 이벤트",
+      "details": [
+        "8개 서식지(habitat) 로테이션",
+        "아머드 뮤츠(Armored Mewtwo) 등장",
+        "슈퍼 메가 레이드: 메가 뮤츠 X / 메가 뮤츠 Y",
+        "대규모 메가 레이드 라인업"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "mega-squads-2026",
+      "name_ko": "메가 스쿼드",
+      "name_en": "Mega Squads",
+      "start": "2026-09-08T10:00",
+      "end": "2026-09-14T20:00",
+      "status": "진행중",
+      "summary": "황혼의 여정 시즌 첫 이벤트. 오라티프·마피티프 데뷔, 이로치 화라미고 첫 등장",
+      "details": [
+        "오라티프(Maschiff) 데뷔 — 알 / 필드 리서치 / GO Pass로 등장",
+        "오라티프 캔디 50개로 마피티프(Mabosstiff) 진화",
+        "이로치 화라미고(Shiny Flamigo) 포켓몬 GO 최초 등장",
+        "이로치 구구(Pidgey) 확률 증가: 9/8 10:00 ~ 9/11 10:00",
+        "이로치 샤프니아(Carvanha) 확률 증가: 9/11 10:00 ~ 9/14 20:00",
+        "메가 스피어·메가 헬가가 신규 '슈퍼 맥스 메가 레벨' 도달 가능 → 메가진화 중 추가 차지 기술 해금",
+        "뿔충이·구구·델빌·샤프니아 및 진화형 포획 시 메가에너지 획득 기회",
+        "9/8 10:00에 'GO Pass: Mega Squads' 자동 지급"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "community-day-classic-gible-2026-09",
+      "name_ko": "커뮤니티 데이 클래식: 딥상어동",
+      "name_en": "Community Day Classic: Gible",
+      "start": "2026-09-12T14:00",
+      "end": "2026-09-12T17:00",
+      "status": "예정",
+      "summary": "딥상어동 대량 출현 + 한카리아스 전용기 '대지의힘'",
+      "details": [
+        "딥상어동(Gible) 야생 출현 대폭 증가, 이로치 등장",
+        "포획 XP 3배",
+        "이벤트 시작 ~ 9/12 21:00 사이에 한바이트(Gabite) 진화 시 한카리아스가 차지 기술 '대지의힘(Earth Power)' 습득",
+        "14:00~21:00: 일반 루어 모듈 설치 포켓스톱에 딥상어동 매우 높은 확률로 출현(이로치 확률 증가 + 스페셜 배경 가능)",
+        "유료 스페셜 리서치 US$1.99"
+      ],
+      "confidence": "high"
+    },
+    {
+      "id": "pokemon-horizons-celebration-2026",
+      "name_ko": "포켓몬 호라이즌 시리즈 기념 이벤트",
+      "name_en": "Pokémon Horizons: The Series Celebration",
+      "start": "2026-09-16",
+      "end": "2026-09-22",
+      "status": "예정",
+      "summary": "애니메이션 연동 기념 이벤트",
+      "confidence": "medium"
+    },
+    {
+      "id": "super-mega-raid-day-staraptor-2026",
+      "name_ko": "슈퍼 메가 레이드 데이: 메가 찌르호크",
+      "name_en": "Super Mega Raid Day: Mega Staraptor",
+      "start": "2026-09-19T14:00",
+      "end": "2026-09-19T17:00",
+      "status": "예정",
+      "summary": "메가 찌르호크(Mega Staraptor) 데뷔",
+      "confidence": "high"
+    },
+    {
+      "id": "catch-mastery-phantump-2026",
+      "name_ko": "캐치 마스터리: 나목령",
+      "name_en": "Catch Mastery: Phantump",
+      "start": "2026-09-26T10:00",
+      "end": "2026-09-26T20:00",
+      "status": "예정",
+      "summary": "나목령(Phantump) 중심 포획 이벤트",
+      "confidence": "high"
+    },
+    {
+      "id": "harvest-festival-2026",
+      "name_ko": "수확제",
+      "name_en": "Harvest Festival",
+      "start": "2026-09-29T10:00",
+      "end": "2026-10-05T20:00",
+      "status": "예정",
+      "summary": "9월 마무리 ~ 10월 초 시즌 이벤트",
+      "confidence": "high"
+    }
+  ],
+
+  "raids": {
+    "five_star": [
+      { "boss_ko": "레지락 / 레지아이스 / 레지스틸", "boss_en": "Regirock / Regice / Registeel", "end": "2026-09-08", "status": "종료" },
+      { "boss_ko": "자시안(용맹한 모습)", "boss_en": "Hero Zacian", "start": "2026-09-09T06:00", "end": "2026-09-15T21:00", "status": "진행중" },
+      { "boss_ko": "자마젠타(용맹한 모습)", "boss_en": "Hero Zamazenta", "start": "2026-09-16T06:00", "end": "2026-09-22T21:00", "status": "예정" },
+      {
+        "boss_ko": "울트라비스트 (지역 한정)",
+        "boss_en": "Ultra Beasts (region-locked)",
+        "start": "2026-09-23T06:00",
+        "end": "2026-09-29T21:00",
+        "status": "예정",
+        "regions": [
+          { "region": "아시아·태평양 (한국 포함)", "boss_ko": "전기자리", "boss_en": "Xurkitree" },
+          { "region": "유럽·중동·아프리카·인도", "boss_ko": "페로코체", "boss_en": "Pheromosa" },
+          { "region": "아메리카·그린란드", "boss_ko": "매시붕", "boss_en": "Buzzwole" }
+        ]
+      },
+      { "boss_ko": "제르네아스", "boss_en": "Xerneas", "start": "2026-09-30T06:00", "end": "2026-10-06T21:00", "status": "예정" }
+    ],
+    "mega": [
+      { "boss_ko": "메가 갸라도스", "boss_en": "Mega Gyarados", "start": "2026-08-26", "end": "2026-09-08", "status": "종료" },
+      { "boss_ko": "메가 스피어", "boss_en": "Mega Beedrill", "start": "2026-09-08", "end": "2026-09-15", "status": "진행중", "note": "9/9 10:00부터 레이드 풀 진입 표기도 있음" },
+      { "boss_ko": "메가 헬가", "boss_en": "Mega Houndoom", "start": "2026-09-11T10:00", "end": "2026-09-16", "status": "진행중" },
+      { "boss_ko": "메가 이상해꽃", "boss_en": "Mega Venusaur", "start": "2026-09-16", "end": "2026-09-22", "status": "예정" },
+      { "boss_ko": "메가 칼라마네로", "boss_en": "Mega Malamar", "start": "2026-09-23", "end": "2026-09-29", "status": "예정" },
+      { "boss_ko": "메가 우츠보트", "boss_en": "Mega Victreebel", "status": "9월 중 로테이션", "confidence": "low" }
+    ],
+    "shadow": {
+      "as_of": "2026-09-09",
+      "availability": "1성·3성 그림자 레이드는 매일, 5성 그림자 레이드는 주말 한정",
+      "tier5_weekend": { "boss_ko": "그림자 토네로스(화신폼)", "boss_en": "Shadow Thundurus (Incarnate)", "start": "2026-09-09", "end": "2026-10-06" },
+      "tier3": ["그림자 알로라 고지(Alolan Sandslash)", "그림자 늪짱이(Quagsire)", "그림자 램프라(Lampent)"],
+      "tier1": ["그림자 알통몬(Machop)", "그림자 모다피(Bellsprout)", "아차모(Torchic)", "그림자 아공이(Bagon)"],
+      "confidence": "medium"
+    }
+  },
+
+  "recurring": {
+    "max_monday": {
+      "when": "매주 월요일, 맥스 배틀 06:00~21:00 / 집중 시간 18:00~19:00",
+      "entries": [
+        { "date": "2026-09-07", "ko": "다이맥스 랄토스", "en": "Dynamax Ralts", "tier": 1, "cost_mp": 250, "shiny": true, "weakness": "고스트·독·강철" },
+        { "date": "2026-09-14", "ko": "다이맥스 뿔카노", "en": "Dynamax Rhyhorn" }
+      ]
+    },
+    "raid_hour": {
+      "when": "매주 수요일 18:00~19:00",
+      "entries": [
+        { "date": "2026-09-09", "ko": "자시안", "en": "Zacian" }
+      ]
+    },
+    "spotlight_hour": {
+      "when": "매주 목요일 18:00~19:00",
+      "schedule_change_note": "2026년 3월까지 화요일 → 잠시 중단 → 6월부터 목요일로 변경되어 운영 중",
+      "entries": [
+        { "date": "2026-09-10", "ko": "뿔충이 / 딱충이 / 독침붕", "en": "Weedle / Kakuna / Beedrill", "bonus": "포켓몬 전송 시 캔디 2배" },
+        { "date": "2026-09-13", "note": "일요일 보너스 스포트라이트 아워 (세부 미확인)", "confidence": "low" },
+        { "date": "2026-09-17", "note": "세부 미확인", "confidence": "low" },
+        { "date": "2026-09-24", "note": "세부 미확인", "confidence": "low" }
+      ]
+    }
+  },
+
+  "gbl": {
+    "season": 28,
+    "name": "GO 배틀리그: 황혼의 여정",
+    "start": "2026-09-08",
+    "end": "2026-12-01",
+    "headline": "시즌 28부터 메가진화 포켓몬이 GO 배틀리그에 참전 (이후 시즌에도 계속)",
+    "rotations": [
+      {
+        "start": "2026-09-15T13:00 PT",
+        "end": "2026-09-22T13:00 PT",
+        "leagues": ["슈퍼리그", "하이퍼리그: 메가 에디션", "의지의 컵: 슈퍼리그 에디션"]
+      }
+    ],
+    "upcoming_cups": ["할로윈 컵", "캐치 컵", "2026 챔피언십 시리즈 컵"],
+    "confidence": "medium"
+  },
+
+  "rocket": {
+    "as_of": "2026-09",
+    "giovanni": {
+      "phase1": "그림자 페르시온(Shadow Persian)",
+      "final": "그림자 레스라무(Shadow Reshiram)",
+      "reward": "그림자 레스라무 조우 + 별의모래 + 아이템 번들 3종",
+      "access": "미사용 슈퍼 로켓 레이더 필요. 'GO Pass: Flying Taxi' 보상은 2026-07-01 만료되어 현재는 포켓스톱 기반으로 등장"
+    },
+    "confidence": "medium"
+  },
+
+  "eggs": {
+    "updated": "2026-09-08 (황혼의 여정 시즌 기준)",
+    "note": "이벤트 기간에는 이벤트 전용 알 풀이 일반 시즌 풀을 일시적으로 대체합니다.",
+    "2km": [
+      "역대 스타팅 포켓몬 다수 (이상해씨~꾸왁스까지)",
+      "피츄(Pichu)", "토게피(Togepi)", "에레키드(Elekid)", "마그비(Magby)", "루리리(Azurill)",
+      "Tadbulb", "Larvesta"
+    ],
+    "5km": ["리오르(Riolu)", "Mantyke", "Snom", "Indeedee(암·수)", "Flittle", "Larvesta"],
+    "7km": "미확인 — 공식/커뮤니티 차트 재확인 필요",
+    "10km": "미확인 — 공식/커뮤니티 차트 재확인 필요",
+    "confidence": "low"
+  },
+
+  "data_sources_for_build": [
+    { "name": "PoGoAPI", "url": "https://pogoapi.net/documentation/", "type": "무인증 JSON REST", "use": "포켓몬 기본 데이터, 타입 상성, CP 계수 등" },
+    { "name": "pokemon-go-api (GitHub)", "url": "https://github.com/pokemon-go-api/pokemon-go-api", "type": "공개 Pokedex API", "use": "포켓몬/기술/메가 데이터" },
+    { "name": "PokéAPI", "url": "https://pokeapi.co/", "type": "공개 REST", "use": "한국어 포켓몬명(species/names) 매핑" },
+    { "name": "Leek Duck", "url": "https://leekduck.com/events/", "type": "커뮤니티 사이트", "use": "이벤트·레이드·알 최신 표" },
+    { "name": "Pokémon GO 공식", "url": "https://pokemongo.com/ko/events", "type": "공식", "use": "한국어 이벤트 원문" }
+  ],
+
+  "sources": [
+    "https://pokemongo.com/seasons/twilight-trails",
+    "https://www.pokemon.com/us/news/take-a-hike-with-pokemon-gos-new-season-twilight-trails",
+    "https://pokemongohub.net/post/guide/september-2026-events/",
+    "https://pokemongohub.net/post/event/this-week-in-pokemon-go-september-7-13-2026/",
+    "https://pokemongohub.net/post/guide/twilight-trails-season/",
+    "https://pokemongohub.net/post/event/pokemon-go-mega-squads-event-guide/",
+    "https://pokemongohub.net/post/pvp/go-battle-league-twilight-trails-schedule-cups-events/",
+    "https://pokemongohub.net/post/guide/rocket-boss-giovanni-counters/",
+    "https://pokemongo.com/en/news/communitydayclassic-gible-september-2026",
+    "https://pokemongo.com/en/news/mega-squads-2026",
+    "https://www.dexerto.com/pokemon/pokemon-go-current-raid-bosses-1568795/",
+    "https://www.dexerto.com/pokemon/pokemon-go-shadow-raid-schedule-2318983/",
+    "https://www.dexerto.com/pokemon/pokemon-go-max-mondays-raid-schedule-2963848/",
+    "https://www.gamespot.com/articles/pokemon-go-september-2026-events-raid-bosses-spotlight-hours-mega-finale-and-more/",
+    "https://digancy.com/september-2026-pokemon-go-events/",
+    "https://leekduck.com/events/season-24-twilight-trails/",
+    "https://pokemonblog.com/2026/08/25/pokemon-go-september-2026-events-include-mega-ascension-pokemon-go-fest-2026-mega-finale-mega-squads-community-day-classic-super-mega-raid-day-catch-mastery-and-harvest-festival/"
+  ]
+}
